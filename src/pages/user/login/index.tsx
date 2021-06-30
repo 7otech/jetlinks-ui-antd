@@ -1,212 +1,261 @@
-import { Alert } from 'antd';
-import React, { Component } from 'react';
-// import { CheckboxChangeEvent } from 'antd/es/checkbox';
-import { Dispatch, AnyAction } from 'redux';
-import { FormComponentProps } from 'antd/es/form';
-// import Link from 'umi/link';
-import { connect } from 'dva';
-import { StateType } from '@/models/login';
-import LoginComponents from './components/Login';
-import styles from './style.less';
-// import { LoginParamsType } from '@/services/login';
-import { ConnectState } from '@/models/connect';
-// import PubSub from 'pubsub-js';
+import {
+  AlipayCircleOutlined,
+  LockOutlined,
+  MailOutlined,
+  MobileOutlined,
+  TaobaoCircleOutlined,
+  UserOutlined,
+  WeiboCircleOutlined,
+} from '@ant-design/icons';
+import { Alert, Space, message, Tabs } from 'antd';
+import React, { useState } from 'react';
+import ProForm, { ProFormCaptcha, ProFormCheckbox, ProFormText } from '@ant-design/pro-form';
+import { useIntl, connect, FormattedMessage } from 'umi';
+import { getFakeCaptcha } from '@/services/login';
+import type { Dispatch } from 'umi';
+import type { StateType } from '@/models/login';
+import type { LoginParamsType } from '@/services/login';
+import type { ConnectState } from '@/models/connect';
 
-const { UserName, Password, Submit } = LoginComponents;
-interface LoginProps {
-  dispatch: Dispatch<AnyAction>;
+import styles from './index.less';
+
+export type LoginProps = {
+  dispatch: Dispatch;
   userLogin: StateType;
   submitting?: boolean;
-}
-interface LoginState {
-  type: string;
-  // autoLogin: boolean;
-  tokenType: 'default';
-}
+};
 
-class Login extends Component<LoginProps, LoginState> {
-  loginForm: FormComponentProps['form'] | undefined | null = undefined;
+const LoginMessage: React.FC<{
+  content: string;
+}> = ({ content }) => (
+  <Alert
+    style={{
+      marginBottom: 24,
+    }}
+    message={content}
+    type="error"
+    showIcon
+  />
+);
 
-  state: LoginState = {
-    type: 'account',
-    // autoLogin: true,
-    tokenType: 'default',
-  };
+const Login: React.FC<LoginProps> = (props) => {
+  const { userLogin = {}, submitting } = props;
+  const { status, type: loginType } = userLogin;
+  const [type, setType] = useState<string>('account');
+  const intl = useIntl();
 
-  // changeAutoLogin = (e: CheckboxChangeEvent) => {
-  //   this.setState({
-  //     autoLogin: e.target.checked,
-  //   });
-  // };
-
-  handleSubmit = (err: unknown, values: any) => {
-    const { tokenType } = this.state;
-
-    if (!err) {
-      const { dispatch } = this.props;
-      dispatch({
-        type: 'login/login',
-        payload: { ...values, tokenType },
-        // callback: (response: string) => {
-        // if (response === 'loginSuccess') {
-        // PubSub.publish('login-success', 'login-success');
-        // }
-        // },
-      });
-    }
-  };
-
-  onTabChange = (type: string) => {
-    this.setState({
-      type,
+  const handleSubmit = (values: LoginParamsType) => {
+    const { dispatch } = props;
+    dispatch({
+      type: 'login/login',
+      payload: { ...values, type },
     });
   };
-
-  onGetCaptcha = () =>
-    new Promise<boolean>((resolve, reject) => {
-      if (!this.loginForm) {
-        return;
-      }
-
-      this.loginForm.validateFields(['mobile'], {}, async (err: unknown, values: any) => {
-        if (err) {
-          reject(err);
-        } else {
-          const { dispatch } = this.props;
-
-          try {
-            const success = await ((dispatch({
-              type: 'login/getCaptcha',
-              payload: values.mobile,
-            }) as unknown) as Promise<unknown>);
-            resolve(!!success);
-          } catch (error) {
-            reject(error);
-          }
-        }
-      });
-    });
-
-  renderMessage = (content: string) => (
-    <Alert
-      style={{
-        marginBottom: 24,
-      }}
-      message={content}
-      type="error"
-      showIcon
-    />
-  );
-
-  render() {
-    const { userLogin = {}, submitting } = this.props;
-    const { status } = userLogin;
-    const { type } = this.state;
-    return (
-      <div className={styles.main}>
-        <LoginComponents
-          defaultActiveKey={type}
-          onTabChange={this.onTabChange}
-          onSubmit={this.handleSubmit}
-          onCreate={(form?: FormComponentProps['form']) => {
-            this.loginForm = form;
-          }}
-        >
-          {/* <Tab key="account" tab="账户密码登录"> */}
-          {status === 400 &&
-            // loginType === 'account' &&
-            !submitting &&
-            this.renderMessage('账户或密码错误')}
-          <UserName
-            name="username"
-            placeholder="用户名"
-            rules={[
-              {
-                required: true,
-                message: '请输入用户名!',
-              },
-            ]}
+  return (
+    <div className={styles.main}>
+      <ProForm
+        initialValues={{
+          autoLogin: true,
+        }}
+        submitter={{
+          render: (_, dom) => dom.pop(),
+          submitButtonProps: {
+            loading: submitting,
+            size: 'large',
+            style: {
+              width: '100%',
+            },
+          },
+        }}
+        onFinish={(values) => {
+          handleSubmit(values as LoginParamsType);
+          return Promise.resolve();
+        }}
+      >
+        <Tabs activeKey={type} onChange={setType}>
+          <Tabs.TabPane
+            key="account"
+            tab={intl.formatMessage({
+              id: 'pages.login.accountLogin.tab',
+              defaultMessage: 'Account password login',
+            })}
           />
-          <Password
-            name="password"
-            placeholder="密码"
-            rules={[
-              {
-                required: true,
-                message: '请输入密码！',
-              },
-            ]}
-            onPressEnter={e => {
-              e.preventDefault();
-
-              if (this.loginForm) {
-                this.loginForm.validateFields(this.handleSubmit);
-              }
-            }}
+          <Tabs.TabPane
+            key="mobile"
+            tab={intl.formatMessage({
+              id: 'pages.login.phoneLogin.tab',
+              defaultMessage: 'Mobile phone number login',
+            })}
           />
-          {/* </Tab>
-          <Tab key="mobile" tab="手机号登录">
-            {status === 'error' &&
-              loginType === 'mobile' &&
-              !submitting &&
-              this.renderMessage('验证码错误')}
-            <Mobile
-              name="mobile"
-              placeholder="手机号"
+        </Tabs>
+
+        {status === 'error' && loginType === 'account' && !submitting && (
+          <LoginMessage
+            content={intl.formatMessage({
+              id: 'pages.login.accountLogin.errorMessage',
+              defaultMessage: 'Incorrect account or password（admin/ant.design)',
+            })}
+          />
+        )}
+        {type === 'account' && (
+          <>
+            <ProFormText
+              name="userName"
+              fieldProps={{
+                size: 'large',
+                prefix: <UserOutlined className={styles.prefixIcon} />,
+              }}
+              placeholder={intl.formatMessage({
+                id: 'pages.login.username.placeholder',
+                defaultMessage: 'Username: admin or user',
+              })}
               rules={[
                 {
                   required: true,
-                  message: '请输入手机号！',
+                  message: (
+                    <FormattedMessage
+                      id="pages.login.username.required"
+                      defaultMessage="Please enter user name!"
+                    />
+                  ),
+                },
+              ]}
+            />
+            <ProFormText.Password
+              name="password"
+              fieldProps={{
+                size: 'large',
+                prefix: <LockOutlined className={styles.prefixIcon} />,
+              }}
+              placeholder={intl.formatMessage({
+                id: 'pages.login.password.placeholder',
+                defaultMessage: 'Password: ant.design',
+              })}
+              rules={[
+                {
+                  required: true,
+                  message: (
+                    <FormattedMessage
+                      id="pages.login.password.required"
+                      defaultMessage="Please enter password！"
+                    />
+                  ),
+                },
+              ]}
+            />
+          </>
+        )}
+
+        {status === 'error' && loginType === 'mobile' && !submitting && (
+          <LoginMessage content="Verification code error" />
+        )}
+        {type === 'mobile' && (
+          <>
+            <ProFormText
+              fieldProps={{
+                size: 'large',
+                prefix: <MobileOutlined className={styles.prefixIcon} />,
+              }}
+              name="mobile"
+              placeholder={intl.formatMessage({
+                id: 'pages.login.phoneNumber.placeholder',
+                defaultMessage: 'Phone number',
+              })}
+              rules={[
+                {
+                  required: true,
+                  message: (
+                    <FormattedMessage
+                      id="pages.login.phoneNumber.required"
+                      defaultMessage="Please enter phone number!"
+                    />
+                  ),
                 },
                 {
                   pattern: /^1\d{10}$/,
-                  message: '手机号格式错误！',
+                  message: (
+                    <FormattedMessage
+                      id="pages.login.phoneNumber.invalid"
+                      defaultMessage="Malformed phone number!"
+                    />
+                  ),
                 },
               ]}
             />
-            <Captcha
+            <ProFormCaptcha
+              fieldProps={{
+                size: 'large',
+                prefix: <MailOutlined className={styles.prefixIcon} />,
+              }}
+              captchaProps={{
+                size: 'large',
+              }}
+              placeholder={intl.formatMessage({
+                id: 'pages.login.captcha.placeholder',
+                defaultMessage: 'Please enter verification code',
+              })}
+              captchaTextRender={(timing, count) => {
+                if (timing) {
+                  return `${count} ${intl.formatMessage({
+                    id: 'pages.getCaptchaSecondText',
+                    defaultMessage: 'Get verification code',
+                  })}`;
+                }
+                return intl.formatMessage({
+                  id: 'pages.login.phoneLogin.getVerificationCode',
+                  defaultMessage: 'Get verification code',
+                });
+              }}
               name="captcha"
-              placeholder="验证码"
-              countDown={120}
-              onGetCaptcha={this.onGetCaptcha}
-              getCaptchaButtonText="获取验证码"
-              getCaptchaSecondText="秒"
               rules={[
                 {
                   required: true,
-                  message: '请输入验证码！',
+                  message: (
+                    <FormattedMessage
+                      id="pages.login.captcha.required"
+                      defaultMessage="Please enter verification code！"
+                    />
+                  ),
                 },
               ]}
-            />
-          </Tab> */}
-          {/* <div>
-            <Checkbox checked={autoLogin} onChange={this.changeAutoLogin}>
-              自动登录
-            </Checkbox>
-            <a
-              style={{
-                float: 'right',
+              onGetCaptcha={async (mobile) => {
+                const result = await getFakeCaptcha(mobile);
+                if (result === false) {
+                  return;
+                }
+                message.success(
+                  'Get the verification code successfully! The verification code is: 1234',
+                );
               }}
-              href=""
-            >
-              忘记密码
-            </a>
-          </div> */}
-          <Submit loading={submitting}>登录</Submit>
-          {/* <div className={styles.other}>
-            其他登录方式
-            <Icon type="alipay-circle" className={styles.icon} theme="outlined" />
-            <Icon type="taobao-circle" className={styles.icon} theme="outlined" />
-            <Icon type="weibo-circle" className={styles.icon} theme="outlined" />
-            <Link className={styles.register} to="/user/register">
-              注册账户
-            </Link>
-          </div> */}
-        </LoginComponents>
-      </div>
-    );
-  }
-}
+            />
+          </>
+        )}
+        <div
+          style={{
+            marginBottom: 24,
+          }}
+        >
+          <ProFormCheckbox noStyle name="autoLogin">
+            <FormattedMessage id="pages.login.rememberMe" defaultMessage="Auto login" />
+          </ProFormCheckbox>
+          <a
+            style={{
+              float: 'right',
+            }}
+          >
+            <FormattedMessage id="pages.login.forgotPassword" defaultMessage="Forget password" />
+          </a>
+        </div>
+      </ProForm>
+      <Space className={styles.other}>
+        <FormattedMessage id="pages.login.loginWith" defaultMessage="Other login methods" />
+        <AlipayCircleOutlined className={styles.icon} />
+        <TaobaoCircleOutlined className={styles.icon} />
+        <WeiboCircleOutlined className={styles.icon} />
+      </Space>
+    </div>
+  );
+};
 
 export default connect(({ login, loading }: ConnectState) => ({
   userLogin: login,

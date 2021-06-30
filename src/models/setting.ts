@@ -1,21 +1,16 @@
-import { Reducer } from 'redux';
-import { Effect } from 'dva';
-import defaultSettings, { DefaultSettings } from '../../config/defaultSettings';
-import apis from '@/services';
+import type { Reducer } from 'umi';
+import type { DefaultSettings } from '../../config/defaultSettings';
+import defaultSettings from '../../config/defaultSettings';
 
-export interface SettingModelType {
+export type SettingModelType = {
   namespace: 'settings';
-  state: Partial<DefaultSettings>;
-  effects: {
-    settingData: Effect;
-    fetchConfig: Effect;
-  },
+  state: DefaultSettings;
   reducers: {
     changeSetting: Reducer<DefaultSettings>;
   };
-}
+};
 
-const updateColorWeak: (colorWeak: boolean) => void = colorWeak => {
+const updateColorWeak: (colorWeak: boolean) => void = (colorWeak) => {
   const root = document.getElementById('root');
   if (root) {
     root.className = colorWeak ? 'colorWeak' : '';
@@ -24,35 +19,12 @@ const updateColorWeak: (colorWeak: boolean) => void = colorWeak => {
 
 const SettingModel: SettingModelType = {
   namespace: 'settings',
-  state: {},
-  effects: {
-    *fetchConfig({ payload, callback }, { call, put }) {
-      const response: any = yield call(apis.systemConfig.list);
-      callback(response.result);
-      if (response.status === 200) {
-        const tempSetting = Object.keys(response.result).length === 0 ? defaultSettings : response.result;
-        yield put({
-          type: 'changeSetting',
-          payload: tempSetting
-        })
-      }
-    },
-    *settingData({ payload,callback }, { call, put }) {
-      const response: any = yield call(apis.systemConfig.update, payload);
-      if (response.status === 200) {
-        callback(response)
-        document.getElementById('title-icon')!.href = payload.titleIcon;
-        yield put({
-          type: 'changeSetting',
-          payload
-        });
-      }
-    }
-  },
+  state: defaultSettings,
   reducers: {
-    changeSetting(state, { payload }) {
+    changeSetting(state = defaultSettings, { payload }) {
       const { colorWeak, contentWidth } = payload;
-      if (state && state.contentWidth !== contentWidth && window.dispatchEvent) {
+
+      if (state.contentWidth !== contentWidth && window.dispatchEvent) {
         window.dispatchEvent(new Event('resize'));
       }
       updateColorWeak(!!colorWeak);

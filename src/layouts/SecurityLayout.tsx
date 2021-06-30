@@ -1,80 +1,58 @@
-import React, { useEffect, useState } from 'react';
-import { connect } from 'dva';
-import { PageLoading, Settings } from '@ant-design/pro-layout';
-import { Redirect, router } from 'umi';
+import React from 'react';
+import { PageLoading } from '@ant-design/pro-layout';
+import type { ConnectProps } from 'umi';
+import { Redirect, connect } from 'umi';
 import { stringify } from 'querystring';
-import { ConnectState, ConnectProps } from '@/models/connect';
-import { CurrentUser } from '@/models/user';
-import { initWebSocket } from './GlobalWebSocket';
-import { getAccessToken } from '@/utils/authority';
-// import { getAccessToken } from '@/utils/authority';
+import type { ConnectState } from '@/models/connect';
+import type { CurrentUser } from '@/models/user';
 
-interface SecurityLayoutProps extends ConnectProps {
+type SecurityLayoutProps = {
   loading?: boolean;
   currentUser?: CurrentUser;
-  children?: any;
-  settings: Settings;
-}
+} & ConnectProps;
 
-const SecurityLayout = (props: SecurityLayoutProps) => {
-  const { dispatch, settings } = props;
-  const [isReady, setIsReady] = useState(false);
-  const { children, loading } = props;
-  // You can replace it to your authentication rule (such as check token exists)
-  // 你可以把它替换成你自己的登录认证规则（比如判断 token 是否存在）
-  const isLogin = !!localStorage.getItem('x-access-token');
-  const token = getAccessToken();
-  const queryString = stringify({
-    redirect: window.location.href,
-  });
-  useEffect(() => {
-    setIsReady(true);
-    if (dispatch) {
-      if (token !== 'null') {
-        dispatch({
-          type: 'user/fetchCurrent',
-        });
-      }else{
-          router.push('/user/login');
-      }
-    }
-  }, []);
+type SecurityLayoutState = {
+  isReady: boolean;
+};
 
-  /**
-   * constructor
-   */
-  useEffect(() => {
+class SecurityLayout extends React.Component<SecurityLayoutProps, SecurityLayoutState> {
+  state: SecurityLayoutState = {
+    isReady: false,
+  };
+
+  componentDidMount() {
+    this.setState({
+      isReady: true,
+    });
+    const { dispatch } = this.props;
     if (dispatch) {
       dispatch({
-        type: 'settings/fetchConfig',
-        callback: () => {
-          document.getElementById('title-icon')!.href = settings.titleIcon;
-          setIsReady(true);
-        },
+        type: 'user/fetchCurrent',
       });
     }
-  }, [settings.title]);
+  }
 
-  const render = () => {
-    if (isLogin) {
-      initWebSocket();
-    }
+  render() {
+    const { isReady } = this.state;
+    const { children, loading, currentUser } = this.props;
+    // You can replace it to your authentication rule (such as check token exists)
+    // You can replace it with your own login authentication rules (such as judging whether the token exists)
+    const isLogin = currentUser && currentUser.userid;
+    const queryString = stringify({
+      redirect: window.location.href,
+    });
 
     if ((!isLogin && loading) || !isReady) {
       return <PageLoading />;
     }
-    if (!isLogin) {
-      // TODO 此处应使用注释的代码。但跳转存在问题，
-      // return <Redirect to={`/user/login?${queryString}`} />;
-      return <Redirect to="/user/login"></Redirect>;
+    if (!isLogin && window.location.pathname !== '/user/login') {
+      return <Redirect to={`/user/login?${queryString}`} />;
     }
     return children;
-  };
-  return render();
-};
+  }
+}
 
-export default connect(({ user, settings, loading }: ConnectState) => ({
+export default connect(({ user, loading }: ConnectState) => ({
   currentUser: user.currentUser,
-  settings,
   loading: loading.models.user,
 }))(SecurityLayout);

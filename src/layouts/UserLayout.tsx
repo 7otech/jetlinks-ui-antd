@@ -1,25 +1,22 @@
-import { MenuDataItem, getMenuData, getPageTitle, Settings } from '@ant-design/pro-layout';
-import { Helmet } from 'react-helmet';
-import { Link } from 'umi';
-import React, { useEffect } from 'react';
-import { connect } from 'dva';
-import { ConnectProps, ConnectState } from '@/models/connect';
+import type { MenuDataItem } from '@ant-design/pro-layout';
+import { DefaultFooter, getMenuData, getPageTitle } from '@ant-design/pro-layout';
+import { Helmet, HelmetProvider } from 'react-helmet-async';
+import type { ConnectProps } from 'umi';
+import { Link, SelectLang, useIntl, connect, FormattedMessage } from 'umi';
+import React from 'react';
+import type { ConnectState } from '@/models/connect';
 import logo from '../assets/logo.svg';
 import styles from './UserLayout.less';
 
-export interface UserLayoutProps extends ConnectProps {
-  breadcrumbNameMap: {
-    [path: string]: MenuDataItem;
-  };
-  settings: Settings;
-}
+export type UserLayoutProps = {
+  breadcrumbNameMap: Record<string, MenuDataItem>;
+} & Partial<ConnectProps>;
 
-const UserLayout: React.FC<UserLayoutProps> = props => {
+const UserLayout: React.FC<UserLayoutProps> = (props) => {
   const {
     route = {
       routes: [],
     },
-    settings,
   } = props;
   const { routes = [] } = route;
   const {
@@ -28,15 +25,16 @@ const UserLayout: React.FC<UserLayoutProps> = props => {
       pathname: '',
     },
   } = props;
+  const { formatMessage } = useIntl();
   const { breadcrumb } = getMenuData(routes);
   const title = getPageTitle({
     pathname: location.pathname,
+    formatMessage,
     breadcrumb,
     ...props,
   });
-
   return (
-    <>
+    <HelmetProvider>
       <Helmet>
         <title>{title}</title>
         <meta name="description" content={title} />
@@ -44,23 +42,28 @@ const UserLayout: React.FC<UserLayoutProps> = props => {
 
       <div className={styles.container}>
         <div className={styles.lang}>
-          {/* <SelectLang /> */}
+          <SelectLang />
         </div>
         <div className={styles.content}>
           <div className={styles.top}>
             <div className={styles.header}>
               <Link to="/">
                 <img alt="logo" className={styles.logo} src={logo} />
-                <span className={styles.title}>JetLinks </span>
+                <span className={styles.title}>Ant Design</span>
               </Link>
             </div>
-            <div className={styles.desc}>捷联物联网平台</div>
+            <div className={styles.desc}>
+              <FormattedMessage
+                id="pages.layouts.userLayout.title"
+                defaultMessage="Ant Design. The most influential Web design specification in Xihu District."
+              />
+            </div>
           </div>
           {children}
         </div>
-        {/* <DefaultFooter /> */}
+        <DefaultFooter />
       </div>
-    </>
+    </HelmetProvider>
   );
 };
 

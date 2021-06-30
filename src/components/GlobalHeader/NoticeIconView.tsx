@@ -1,169 +1,111 @@
-import React, { Component } from 'react';
-import { message, notification, Icon, Button } from 'antd';
-import { connect } from 'dva';
+import { Component } from 'react';
+import type { ConnectProps } from 'umi';
+import { connect } from 'umi';
+import { Tag, message } from 'antd';
 import groupBy from 'lodash/groupBy';
 import moment from 'moment';
-import { NoticeItem } from '@/models/global';
+import type { NoticeItem } from '@/models/global';
+import type { CurrentUser } from '@/models/user';
+import type { ConnectState } from '@/models/connect';
 import NoticeIcon from '../NoticeIcon';
-import { CurrentUser } from '@/models/user';
-import { ConnectProps, ConnectState } from '@/models/connect';
 import styles from './index.less';
-import { getWebsocket } from '@/layouts/GlobalWebSocket';
-import Service from '@/pages/account/notification/service';
-import encodeQueryParam from '@/utils/encodeParam';
-import { router } from 'umi';
-import { throttleTime, } from 'rxjs/operators';
 
-export interface GlobalHeaderRightProps extends ConnectProps {
+export type GlobalHeaderRightProps = {
   notices?: NoticeItem[];
   currentUser?: CurrentUser;
   fetchingNotices?: boolean;
   onNoticeVisibleChange?: (visible: boolean) => void;
   onNoticeClear?: (tabName?: string) => void;
-}
-interface State {
-  noticeList: any[];
-  loading: boolean;
-}
+} & Partial<ConnectProps>;
+
 class GlobalHeaderRight extends Component<GlobalHeaderRightProps> {
-
-  state: State = {
-    noticeList: [],
-    loading: false,
-  }
-
-
-
-  service = new Service('notifications');
-  private ws: any;
-  getNotice = () => {
+  componentDidMount() {
     const { dispatch } = this.props;
+
     if (dispatch) {
       dispatch({
         type: 'global/fetchNotices',
-        payload: encodeQueryParam({
-          terms: { state: 'unread' }
-        })
       });
     }
   }
-  componentDidMount() {
-    this.getNotice();
-    this.ws = getWebsocket(
-      `notification`,
-      `/notifications`,
-      {}
-    ).pipe(
-      throttleTime(2000),
-    ).subscribe(
-      (resp: any) => {
-        this.getNotice();
-        notification.open({
-          message: resp?.payload?.topicName,
-          description: resp?.payload?.message,
-          key: resp.payload.id,
-          top: 60,
-          btn: <Button
-            type="primary"
-            onClick={() => {
-              this.service
-                .read(resp.payload.id)
-                .subscribe(() => {
-                  notification.close(resp.payload.id)
-                  this.getNotice();
-                });
-            }}
-          >标记已读</Button>,
-          icon: <Icon type="exclamation-circle" style={{ color: '#E23D38' }} />,
-        });
-      }
-    );
-
-  }
-
-  componentWillUnmount() {
-    this.ws.unsubscribe();
-  }
 
   changeReadState = (clickedItem: NoticeItem): void => {
-    const { id, state } = clickedItem;
-    if (state === 'unread') {
-      const { dispatch } = this.props;
-      if (dispatch) {
-        dispatch({
-          type: 'global/changeNoticeReadState',
-          payload: id,
-        });
-      }
+    const { id } = clickedItem;
+    const { dispatch } = this.props;
+
+    if (dispatch) {
+      dispatch({
+        type: 'global/changeNoticeReadState',
+        payload: id,
+      });
     }
   };
 
   handleNoticeClear = (title: string, key: string) => {
     const { dispatch } = this.props;
-    message.success(`${'清空了'} ${title}`);
-    const clearIds = (this.getNoticeData().unread || []).map(item => item.id);
+    message.success(`${'Emptied'} ${title}`);
 
     if (dispatch) {
       dispatch({
         type: 'global/clearNotices',
-        payload: clearIds,
+        payload: key,
       });
-      // dispatch({
-      //   type: 'global/fetchNotices',
-      //   payload: encodeQueryParam({
-      //     terms: { state: 'unread' }
-      //   })
-      // });
     }
   };
 
-  getNoticeData = (): {
-    [key: string]: NoticeItem[];
-  } => {
+  getNoticeData = (): Record<string, NoticeItem[]> => {
     const { notices = [] } = this.props;
-    if (notices.length === 0) {
+
+    if (!notices || notices.length === 0 || !Array.isArray(notices)) {
       return {};
     }
 
-    const newNotices = notices.map(notice => {
+    const newNotices = notices.map((notice) => {
       const newNotice = { ...notice };
-      if (newNotice.notifyTime) {
-        newNotice.notifyTime = moment(notice.notifyTime as string).fromNow();
+
+      if (newNotice.datetime) {
+        newNotice.datetime = moment(notice.datetime as string).fromNow();
       }
 
       if (newNotice.id) {
         newNotice.key = newNotice.id;
       }
 
-      newNotice.avatar = 'https://gw.alipayobjects.com/zos/rmsportal/fcHMVNCjPOsbUGdEduuv.jpeg';
-      newNotice.title = notice.topicName;
-      newNotice.description = notice.message;
+      if (newNotice.extra && newNotice.status) {
+        const color = {
+          todo: '',
+          processing: 'blue',
+          urgent: 'red',
+          doing: 'gold',
+        }[newNotice.status];
+        newNotice.extra = (
+          <Tag
+            color={color}
+            style={{
+              marginRight: 0,
+            }}
+          >
+            {newNotice.extra}
+          </Tag>
+        );
+      }
 
       return newNotice;
     });
-
-    // console.log(groupBy(newNotices, 'state.value'), 'group-state');
-    // return groupBy(newNotices, 'subscriberType');
-    return groupBy(newNotices.map(item => ({ ...item, state: item.state.value })), 'state');
+    return groupBy(newNotices, 'type');
   };
 
-  getUnreadData = (noticeData: { [key: string]: NoticeItem[] }) => {
-    const unreadMsg: {
-      [key: string]: number;
-    } = {};
-    Object.keys(noticeData).forEach(key => {
+  getUnreadData = (noticeData: Record<string, NoticeItem[]>) => {
+    const unreadMsg: Record<string, number> = {};
+    Object.keys(noticeData).forEach((key) => {
       const value = noticeData[key];
 
-      // console.log(key, 'kley');
       if (!unreadMsg[key]) {
         unreadMsg[key] = 0;
       }
 
       if (Array.isArray(value)) {
-        // unreadMsg[key] = value.length;
-        // console.log(value, value.filter(item => !item.read).length, key, 'value');
-        // unreadMsg[key] = value.filter(item => !item.read).length;
-        // unreadMsg[key] = value.filter(item => item.state === 'unread').length;
+        unreadMsg[key] = value.filter((item) => !item.read).length;
       }
     });
     return unreadMsg;
@@ -177,43 +119,41 @@ class GlobalHeaderRight extends Component<GlobalHeaderRightProps> {
       <NoticeIcon
         className={styles.action}
         count={currentUser && currentUser.unreadCount}
-        onItemClick={item => {
+        onItemClick={(item) => {
           this.changeReadState(item as NoticeItem);
         }}
         loading={fetchingNotices}
-        clearText="当前标记为已读"
-        viewMoreText="查看更多"
+        clearText="Empty"
+        viewMoreText="See more"
         onClear={this.handleNoticeClear}
         onPopupVisibleChange={onNoticeVisibleChange}
-        onViewMore={() => router.push('/account/notification')}
+        onViewMore={() => message.info('Click on view more')}
         clearClose
       >
-        {/* <NoticeIcon.Tab
+        <NoticeIcon.Tab
           tabKey="notification"
           count={unreadMsg.notification}
           list={noticeData.notification}
-          title="通知"
-          emptyText="你已查看所有通知"
-          showViewMore
-        /> */}
-
-        <NoticeIcon.Tab
-          tabKey="read"
-          count={unreadMsg.unread}
-          list={noticeData.unread}
-          title="未读消息"
-          emptyText="您已读完所有消息"
+          title="Notification"
+          emptyText="You have viewed all notifications"
           showViewMore
         />
         <NoticeIcon.Tab
-          tabKey="handle"
-          title="待办消息"
-          emptyText="暂无消息"
-          count={unreadMsg.handle}
-          list={noticeData.handle}
+          tabKey="message"
+          count={unreadMsg.message}
+          list={noticeData.message}
+          title="Message"
+          emptyText="You have read all messages"
           showViewMore
         />
-
+        <NoticeIcon.Tab
+          tabKey="event"
+          title="To do"
+          emptyText="You have completed all to-dos"
+          count={unreadMsg.event}
+          list={noticeData.event}
+          showViewMore
+        />
       </NoticeIcon>
     );
   }
