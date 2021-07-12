@@ -57,7 +57,7 @@ export default {
   menu: {
     locale: true,
   },
-  title: 'JetLinks',
+  title: '博云物联网平台',
   pwa: false,
   iconfontUrl: '',
 } as DefaultSettings;
